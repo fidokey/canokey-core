@@ -79,11 +79,11 @@ int card_fabrication_procedure(const char * lfs_root) {
   cfg.erase = &lfs_filebd_erase;
   cfg.sync = &lfs_filebd_sync;
   cfg.read_size = 1;
-  cfg.prog_size = 512;
-  cfg.block_size = 512;
-  cfg.block_count = 256;
+  cfg.prog_size = 8;
+  cfg.block_size = 2048;
+  cfg.block_count = 48;
   cfg.block_cycles = 50000;
-  cfg.cache_size = 512;
+  cfg.cache_size = 128;
   cfg.lookahead_size = 16;
   lfs_filebd_create(&cfg, lfs_root);
 
