@@ -8,8 +8,7 @@ jobs:
     - name: Package Install
       run: |
         sudo apt update
-        sudo apt install gcc g++ cmake swig psmisc procps pcscd pcsc-tools yubico-piv-tool libassuan-dev libgcrypt20-dev libksba-dev libnpth0-dev opensc openssl openssh-server libpcsclite-dev libcmocka-dev python3-pip python3-setuptools python3-wheel
-        sudo pip install cpp-coveralls
+        sudo apt install gcc g++ cmake swig psmisc procps pcscd pcsc-tools yubico-piv-tool libassuan-dev libgcrypt20-dev libksba-dev libnpth0-dev opensc openssl openssh-server libpcsclite-dev libcmocka-dev python3-pip python3-setuptools python3-wheel lcov
 
     - name: Set up Go 1.13
       uses: actions/setup-go@v1
@@ -166,6 +165,7 @@ jobs:
         GPGSign
         GPGReset
         echo -e 'admin\nkey-attr\n2\n1\n2\n1\n2\n1\n' | gpg --command-fd 0 --yes --expert --edit-card
+        ## RSA2048 generation on card
         echo -e 'admin\nkey-attr\n1\n2048\n1\n2048\n1\n2048\n' | gpg --command-fd 0 --yes --expert --edit-card # key-attr set to RSA2048
         Addcardkey 1 # generate Signature key on card
         Addcardkey 2 # generate Encryption key on card
@@ -175,6 +175,17 @@ jobs:
         ChangeUsage
         GPGAuth
         GPGReset
+        ## RSA4096 generation on card
+        echo -e 'admin\nkey-attr\n1\n4096\n1\n4096\n1\n4096\n' | gpg --command-fd 0 --yes --expert --edit-card # key-attr set to RSA4096
+        Addcardkey 1 # generate Signature key on card
+        Addcardkey 2 # generate Encryption key on card
+        GPGEnc
+        GPGSign
+        Addcardkey 3 # generate Authentication key on card
+        ChangeUsage
+        GPGAuth
+        GPGReset
+        ## 25519 generation on card
         echo -e 'admin\nkey-attr\n2\n1\n2\n1\n2\n1\n' | gpg --command-fd 0 --yes --expert --edit-card # key-attr set to 25519
         Addcardkey 1 # generate Signature key on card
         Addcardkey 2 # generate Encryption key on card
@@ -184,6 +195,7 @@ jobs:
         ChangeUsage
         GPGAuth
         GPGReset
+        ## NIST P-256 generation on card
         echo -e 'admin\nkey-attr\n2\n3\n2\n3\n2\n3\n' | gpg --command-fd 0 --yes --expert --edit-card # key-attr set to ECC P-256
         Addcardkey 1 # generate Signature key on card
         Addcardkey 2 # generate Encryption key on card
@@ -293,16 +305,20 @@ jobs:
         longName=OU=ThisIsAVeryLongNameThisIsAVeryLongNameThisIsAVeryLongName0000000/O=ThisIsAVeryLongNameThisIsAVeryLongNameThisIsAVeryLongName/L=ThisIsAVeryLongNameThisIsAVeryLongNameThisIsAVeryLongName/ST=State0/C=CN
         for s in 9a 9c 9d 9e; do PIVGenKeyCert $s "/CN=CertAtSlot$s/$longName" RSA2048; done
     
-    - name: Upload the Test Coverage Stat
-      env:
-        COVERALLS_REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TRAVIS_JOB_ID: ${{ env.GITHUB_RUN_ID }}
+    - name: Prepare the Test Coverage Report
       run: |
         go test test-via-pcsc/admin_test.go -v -run TestFSUsage
         sudo killall pcscd || true # To flush the cov files
         ls /tmp
         sleep 2
-        coveralls # options are read from .coveralls.yml
+        mkdir coverage
+        find build/ -name '*.gcda' | grep -P '/(canokey-crypto|virt-card|tinycbor|littlefs|interface)/' | xargs rm
+        lcov --base-directory . --directory . -c -o ./coverage/lcov.info
+
+    - name: Coveralls
+      uses: coverallsapp/github-action@master
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Upload log files
       if: ${{ always() }}
